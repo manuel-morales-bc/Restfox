@@ -68,12 +68,41 @@ export default {
         }
     },
     methods: {
+        async maybeAutoPullCollectionSync() {
+            if(!this.activeWorkspace) {
+                return
+            }
+
+            if(this.activeWorkspace._type === 'file') {
+                return
+            }
+
+            const syncUrl = (localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_URL) || '').trim()
+            const autoPull = (localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_AUTO_PULL) || 'false') === 'true'
+
+            if(!autoPull || !syncUrl) {
+                return
+            }
+
+            const result = await this.$store.dispatch('syncPullWorkspaceFromUrl', {
+                workspaceId: this.activeWorkspace._id,
+                url: syncUrl,
+                overwrite: true,
+            })
+
+            if(result?.error) {
+                // Don't block app load; just notify.
+                this.$toast.error(`Auto-sync failed: ${result.error}`)
+            }
+        },
         async fetchSetCollectionForWorkspace() {
             if(!this.activeWorkspace) {
                 this.activeWorkspaceLoaded = false
                 this.$store.commit('setCollection', [])
                 return
             }
+
+            await this.maybeAutoPullCollectionSync()
 
             const { error, collection: collections, workspace } = await getCollectionForWorkspace(this.activeWorkspace._id)
 

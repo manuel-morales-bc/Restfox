@@ -131,6 +131,7 @@ import {
     convertCollectionsFromRestfoxToPostman,
     convertCollectionsFromRestfoxToInsomnia,
     exportCollection,
+    fetchRemoteUrl,
 } from '@/helpers'
 import { getCollectionForWorkspace } from '@/db'
 import constants from '../constants'
@@ -266,6 +267,27 @@ export default {
     },
     methods: {
         async exportCollection(value) {
+            if(value === 'Sync Pull (overwrite)') {
+                const syncUrl = (localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_URL) || '').trim()
+                if(!syncUrl) {
+                    this.$toast.error('Sync URL is not set (Settings → Advanced → Collection Sync)')
+                    return
+                }
+
+                const result = await this.$store.dispatch('syncPullWorkspaceFromUrl', {
+                    workspaceId: this.activeWorkspace._id,
+                    url: syncUrl,
+                    overwrite: true,
+                })
+
+                if(result?.error) {
+                    this.$toast.error(`Sync pull failed: ${result.error}`)
+                } else {
+                    this.$toast.success('Synced from URL')
+                }
+                return
+            }
+
             let { collection } = await getCollectionForWorkspace(this.activeWorkspace._id)
             for(const item of collection) {
                 item.plugins = this.$store.state.plugins.workspace.filter(plugin => plugin.collectionId === item._id)
@@ -282,6 +304,32 @@ export default {
 
             if (value === 'Restfox') {
                 exportRestfoxCollection(collection, this.activeWorkspace.environments)
+            }
+
+            if (value === 'Sync Push') {
+                const syncUrl = (localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_URL) || '').trim()
+                if(!syncUrl) {
+                    this.$toast.error('Sync URL is not set (Settings → Advanced → Collection Sync)')
+                    return
+                }
+
+                const payload = {
+                    exportedFrom: 'Restfox-1.0.0',
+                    collection,
+                    environments: this.activeWorkspace.environments,
+                }
+
+                try {
+                    await fetchRemoteUrl(syncUrl, {
+                        method: 'PUT',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        responseType: 'text',
+                    })
+                    this.$toast.success('Pushed to URL')
+                } catch(e: any) {
+                    this.$toast.error(`Sync push failed: ${e?.message ?? 'Unknown error'}`)
+                }
             }
 
             if (value === 'Postman') {
@@ -400,6 +448,18 @@ export default {
                     type: 'option',
                     label: 'Restfox collection',
                     value: 'Restfox',
+                    class: 'context-menu-item-with-left-padding'
+                },
+                {
+                    type: 'option',
+                    label: 'Sync: Push to URL',
+                    value: 'Sync Push',
+                    class: 'context-menu-item-with-left-padding'
+                },
+                {
+                    type: 'option',
+                    label: 'Sync: Pull from URL (overwrite)',
+                    value: 'Sync Pull (overwrite)',
                     class: 'context-menu-item-with-left-padding'
                 },
                 {

@@ -318,6 +318,65 @@ export async function fetchWrapper(url: URL, method: string, headers: Record<str
     }
 }
 
+function getNetworkFlagsFromLocalStorage(): { electronSwitchToChromiumFetch: boolean, disableSSLVerification: boolean } {
+    const savedDisableSSLVerification = localStorage.getItem(constants.LOCAL_STORAGE_KEY.DISABLE_SSL_VERIFICATION)
+    const savedElectronSwitchToChromiumFetch = localStorage.getItem(constants.LOCAL_STORAGE_KEY.ELECTRON_SWITCH_TO_CHROMIUM_FETCH)
+
+    return {
+        disableSSLVerification: savedDisableSSLVerification === 'true',
+        electronSwitchToChromiumFetch: savedElectronSwitchToChromiumFetch === 'true',
+    }
+}
+
+export async function fetchRemoteUrl(
+    url: string,
+    options: {
+        method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        headers?: Record<string, string>,
+        body?: any,
+        responseType?: 'json' | 'text' | 'arrayBuffer',
+        signal?: AbortSignal,
+    } = {}
+): Promise<any> {
+    const {
+        method = 'GET',
+        headers = {},
+        body = null,
+        responseType = 'json',
+        signal,
+    } = options
+
+    const abortController = new AbortController()
+    if (signal) {
+        signal.addEventListener('abort', () => abortController.abort(), { once: true })
+    }
+
+    const response = await fetchWrapper(
+        new URL(url),
+        method,
+        headers,
+        body,
+        abortController.signal,
+        getNetworkFlagsFromLocalStorage()
+    )
+
+    if ('error' in (response as any) && (response as any).error) {
+        throw new Error((response as any).error)
+    }
+
+    if (responseType === 'arrayBuffer') {
+        return response.buffer
+    }
+
+    const text = new TextDecoder().decode(response.buffer)
+
+    if (responseType === 'text') {
+        return text
+    }
+
+    return JSON.parse(text)
+}
+
 export async function createRequestData(
     state: HandleRequestState,
     request: CollectionItem,

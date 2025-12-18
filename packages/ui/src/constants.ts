@@ -33,6 +33,8 @@ export default {
         SHOW_TABS: 'Restfox-ShowTabs',
         HIDE_PASSWORD_FIELDS: 'Restfox-HidePasswordFields',
         CUSTOM_RESPONSE_FORMATS: 'Restfox-CustomResponseFormats',
+        COLLECTION_SYNC_URL: 'Restfox-CollectionSyncUrl',
+        COLLECTION_SYNC_AUTO_PULL: 'Restfox-CollectionSyncAutoPull',
     },
     HOTKEYS: {
         SEND_REQUEST: 'Ctrl + Enter',
