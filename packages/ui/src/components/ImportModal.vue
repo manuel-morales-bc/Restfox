@@ -5,6 +5,7 @@
                 <div style="font-weight: 500; margin-bottom: var(--label-margin-bottom)">Import From</div>
                 <select class="full-width-input" v-model="importFrom" :disabled="importing">
                     <option>Restfox</option>
+                    <option>Restfox URL</option>
                     <option>Postman</option>
                     <option>Postman URL</option>
                     <option value="Insomnia">Insomnia / Insomnium</option>
@@ -166,6 +167,10 @@ export default {
             return this.$store.state.collectionTree
         },
         importUrlPlaceholder() {
+            if(this.importFrom === 'Restfox URL') {
+                return 'https://example.com/restfox-collection.json'
+            }
+
             if(this.importFrom === 'Postman URL') {
                 return 'https://postman.com/collections/{collectionId}'
             }
@@ -281,7 +286,17 @@ export default {
                 let collectionTree = []
                 let plugins = []
 
-                if(this.importFrom === 'Postman URL') {
+                if(this.importFrom === 'Restfox URL') {
+                    json = await this.fetchUrl(this.urlToImport, 'json')
+
+                    const { newCollectionTree, newPlugins } = convertRestfoxExportToRestfoxCollection(json, this.activeWorkspace._id)
+
+                    collectionTree = newCollectionTree
+
+                    if(newPlugins.length > 0) {
+                        plugins = plugins.concat(newPlugins)
+                    }
+                } else if(this.importFrom === 'Postman URL') {
                     json = await this.fetchUrl(this.urlToImport, 'json')
 
                     const { collection, plugins: newPlugins } = await convertPostmanExportToRestfoxCollection(json, false, this.activeWorkspace._id)
@@ -398,7 +413,7 @@ export default {
                 }
             } catch(e) {
                 console.log(e)
-                if(this.importFrom === 'Postman URL') {
+                if(this.importFrom.endsWith(' URL')) {
                     this.$toast.error(`Invalid import url given: ${this.urlToImport}`)
                 } else {
                     this.$toast.error(`Invalid import file given: ${fileBeingImported}`)

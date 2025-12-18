@@ -126,6 +126,22 @@
                     </div>
 
                     <div style="padding-top: 1rem">
+                        <div style="margin-bottom: var(--label-margin-bottom); font-weight: 500;">Collection Sync</div>
+                        <div style="margin-bottom: 0.5rem;">
+                            Configure a remote URL that hosts a Restfox export JSON. You can push your current workspace to this URL and (optionally) auto-pull on workspace load.
+                        </div>
+                        <input type="url" v-model="collectionSyncUrl" class="full-width-input" placeholder="https://example.com/restfox-collection.json">
+                        <div style="padding-top: 0.75rem">
+                            <label style="display: flex;">
+                                <input type="checkbox" v-model="collectionSyncAutoPull"> <div style="margin-left: 0.5rem;">Auto-pull on workspace load (overwrite)</div>
+                            </label>
+                            <div style="margin-left: 1.3rem; margin-top: 0.3rem;">
+                                When enabled, Restfox will fetch the URL on workspace load and overwrite the workspace collections & plugins with the remote contents.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="padding-top: 1rem">
                         <label style="display: flex;">
                             <input type="checkbox" v-model="disableIframeSandbox"> <div style="margin-left: 0.5rem;">Remove Iframe Sandbox Restriction</div>
                         </label>
@@ -187,6 +203,8 @@ export default {
             hidePasswordFields: false,
             customResponseFormats: [],
             newCustomFormat: '',
+            collectionSyncUrl: '',
+            collectionSyncAutoPull: false,
         }
     },
     computed: {
@@ -251,6 +269,12 @@ export default {
                 this.$store.state.settings.customResponseFormats = newFormats
             },
             deep: true
+        },
+        collectionSyncUrl() {
+            localStorage.setItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_URL, this.collectionSyncUrl.trim())
+        },
+        collectionSyncAutoPull() {
+            localStorage.setItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_AUTO_PULL, this.collectionSyncAutoPull ? 'true' : 'false')
         },
     },
     methods: {
@@ -356,6 +380,8 @@ export default {
             const savedIndentSize = localStorage.getItem(constants.LOCAL_STORAGE_KEY.INDENT_SIZE) || 4
             const savedShowTabs = localStorage.getItem(constants.LOCAL_STORAGE_KEY.SHOW_TABS) || true
             const savedHidePasswordFields = localStorage.getItem(constants.LOCAL_STORAGE_KEY.HIDE_PASSWORD_FIELDS) || false
+            const savedCollectionSyncUrl = localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_URL)
+            const savedCollectionSyncAutoPull = localStorage.getItem(constants.LOCAL_STORAGE_KEY.COLLECTION_SYNC_AUTO_PULL)
 
             if(savedSidebarWidth) {
                 this.sidebarWidth = savedSidebarWidth
@@ -431,6 +457,14 @@ export default {
 
             this.customResponseFormats = this.getStoredJSON(constants.LOCAL_STORAGE_KEY.CUSTOM_RESPONSE_FORMATS)
             this.$store.state.settings.customResponseFormats = this.customResponseFormats
+
+            if(savedCollectionSyncUrl) {
+                this.collectionSyncUrl = savedCollectionSyncUrl
+            }
+
+            if(savedCollectionSyncAutoPull) {
+                this.collectionSyncAutoPull = savedCollectionSyncAutoPull === 'true'
+            }
         },
         getCurrentUserAgent() {
             this.globalUserAgent = navigator.userAgent

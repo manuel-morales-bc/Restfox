@@ -18,6 +18,8 @@ import {
     setEnvironmentVariable,
     setParentEnvironmentVariable,
     setObjectPathValue,
+    fetchRemoteUrl,
+    convertRestfoxExportToRestfoxCollection,
 } from './helpers'
 import {
     getResponsesByCollectionId,
@@ -1643,6 +1645,78 @@ export const store = createStore<State>({
             }
 
             loadWorkspaceTabs(context)
+        },
+        async syncPullWorkspaceFromUrl(context, { workspaceId, url, overwrite = true }: { workspaceId: string, url: string, overwrite?: boolean }) {
+            if(!url || url.trim() === '') {
+                return { error: 'Sync URL is empty' }
+            }
+
+            // File workspaces are backed by filesystem + electron IPC and don't support this sync flow safely.
+            const workspace = context.state.workspaces.find(w => w._id === workspaceId)
+            if(workspace?._type === 'file') {
+                return { error: 'Sync is not supported for File Workspaces' }
+            }
+
+            try {
+                const remoteJson = await fetchRemoteUrl(url, { method: 'GET', responseType: 'json' })
+
+                const { newCollectionTree, newPlugins } = convertRestfoxExportToRestfoxCollection(remoteJson, workspaceId)
+
+                if(overwrite) {
+                    const existingCollectionIds = await getAllCollectionIdsForGivenWorkspace(workspaceId)
+                    if(existingCollectionIds.length > 0) {
+                        await deleteResponsesByCollectionIds(workspaceId, existingCollectionIds)
+                        await deletePluginsByCollectionIds(workspaceId, existingCollectionIds)
+                    }
+                    await deletePluginsByWorkspace(workspaceId)
+                    await deleteCollectionsByWorkspaceId(workspaceId)
+                }
+
+                addSortOrderToTree(newCollectionTree)
+
+                // Flatten and persist collections
+                const flattened = JSON.parse(JSON.stringify(flattenTree(newCollectionTree)))
+                const createResult = await createCollections(workspaceId, flattened)
+                if(createResult.error) {
+                    return { error: createResult.error }
+                }
+
+                // Persist plugins (keep ids as-is for overwrite mode; no collisions after wipe)
+                if(newPlugins.length > 0) {
+                    await createPlugins(newPlugins, workspaceId)
+                    // If we're pulling into the active workspace, refresh plugin state after
+                }
+
+                // Apply environments from remote export if present
+                if(remoteJson && remoteJson.environments) {
+                    const environments = remoteJson.environments
+                    let currentEnvironment = (workspace?.currentEnvironment ?? constants.DEFAULT_ENVIRONMENT.name)
+                    const found = environments.find((e: any) => e.name === currentEnvironment)
+                    if(!found && environments.length > 0) {
+                        currentEnvironment = environments[0].name
+                    }
+
+                    const selectedEnvironment = environments.find((e: any) => e.name === currentEnvironment) ?? environments[0]
+
+                    await context.dispatch('updateWorkspace', {
+                        _id: workspaceId,
+                        updatedFields: {
+                            environments,
+                            currentEnvironment,
+                            environment: selectedEnvironment?.environment ?? {},
+                        }
+                    })
+                }
+
+                // Refresh UI state if needed
+                if(context.state.activeWorkspace?._id === workspaceId) {
+                    await context.dispatch('refreshWorkspace')
+                }
+
+                return { error: null }
+            } catch(e: any) {
+                return { error: e?.message ?? 'Sync pull failed' }
+            }
         },
     }
 })
